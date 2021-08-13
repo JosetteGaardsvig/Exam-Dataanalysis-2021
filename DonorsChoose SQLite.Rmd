@@ -1,0 +1,188 @@
+---
+title: "DonorsChoose SQL"
+author: "JSG"
+date: "2/8/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load("tidyverse", "magrittr", "nycflights13", "gapminder",
+"Lahman", "maps", "lubridate", "pryr", "hms", "hexbin",
+"feather", "htmlwidgets", "broom", "pander", "modelr",
+"XML", "httr", "jsonlite", "lubridate", "microbenchmark",
+"splines", "ISLR", "MASS", "testthat", "caret", "gbm",
+"RSQLite", "class", "babynames", "nasaweather", "pls",
+"fueleconomy", "viridis", "boot", "devtools", "tree",
+"glmnet", "gam", "akima", "factoextra", "randomForest",
+"ggrepel", "GGally", "fmsb", "sjPlot", "rcompanion",
+"leaps", "caretEnsemble", "dplyr")
+```
+
+
+SQL DATABASE 
+
+```{r}
+donation <- readRDS("donation.rds")
+```
+
+
+```{r}
+Donors <- read_csv("Donors.csv.zip")
+```
+
+
+```{r}
+project <- readRDS("project.rds")
+```
+
+
+```{r}
+Resources <- read_csv("Resources.csv.zip")
+```
+
+Resources have 8688 parsing failures of 7170289 rows with 5 variables
+
+
+To see the parsing failures
+```{r}
+problem <- problems(Resources)
+```
+
+```{r}
+problem
+```
+# A tibble: 8,688 x 5
+     row col                expected           actual file               
+   <int> <chr>              <chr>              <chr>  <chr>              
+ 1  1171 Resource Item Name delimiter or quote d      'Resources.csv.zip'
+ 2  3431 Resource Item Name delimiter or quote s      'Resources.csv.zip'
+ 3  5197 Resource Item Name delimiter or quote l      'Resources.csv.zip'
+ 4  5226 Resource Item Name delimiter or quote j      'Resources.csv.zip'
+ 5  6487 Resource Item Name delimiter or quote k      'Resources.csv.zip'
+ 6  6487 Resource Item Name delimiter or quote k      'Resources.csv.zip'
+ 7  6487 Resource Item Name delimiter or quote g      'Resources.csv.zip'
+ 8  7524 Resource Item Name delimiter or quote t      'Resources.csv.zip'
+ 9  8873 Resource Item Name delimiter or quote k      'Resources.csv.zip'
+10  8873 Resource Item Name delimiter or quote f      'Resources.csv.zip'
+# ... with 8,678 more rows
+
+To remove the parsing failures (Bjarnes method)
+First I define the parsing failures in a dataset called resourses, and I subtract it at the same time
+```{r}
+resources <- -problems(Resources)[1]%>%
+  dplyr::distinct()%>%
+  pull()
+```
+
+```{r}
+resources
+```
+
+
+Then I define a new dataset not containing the parsing failures
+```{r}
+resource <- Resources[resources,]
+```
+
+```{r}
+resource
+```
+
+
+
+```{r}
+Schools <- read_csv("Schools.csv.zip")
+```
+Parsing failure
+
+
+```{r}
+Teachers <- read_csv("Teachers.csv.zip")
+```
+
+
+
+TAGER SMÅ STIKPRØVER AF DATASÆTTENE
+
+```{r}
+set.seed(123)
+Donors_1 <- Donors %>% sample_frac(.001)
+```
+
+```{r}
+Donors_1
+```
+
+
+FLYTTER 6 DATASÆT OVER I EN SQL DATABASE OG KALDER DEN "DONORDATA"
+
+
+SQL
+```{r}
+
+library(RSQLite)
+library(testthat)
+
+if (!dir.exists("donordata")) dir.create("donordata")
+
+
+connection_donordata <- dbConnect(SQLite(), "donordata/r_db_ex.sqlite")
+
+dbWriteTable(connection_donordata, "db_donation", donation, row.names = FALSE, overwrite = TRUE)
+
+dbWriteTable(connection_donordata, "db_Donors", Donors_1, row.names = FALSE, overwrite = TRUE)
+
+dbWriteTable(connection_donordata, "db_project", project, row.names = FALSE, overwrite = TRUE)
+
+dbWriteTable(connection_donordata, "db_resource", resource,  row.names = FALSE, overwrite = TRUE)
+
+dbWriteTable(connection_donordata, "db_Schools", Schools, row.names = FALSE, overwrite = TRUE)
+
+dbWriteTable(connection_donordata, "db_Teachers", Teachers, row.names = FALSE, overwrite = TRUE)
+
+
+
+dbListTables(connection_donordata)
+
+dbDisconnect(connection_donordata)
+
+
+```
+[1] "db_Donors"   "db_Schools"  "db_Teachers" "db_donation" "db_project"  "db_resource"
+
+EKSEMPEL MED DONORS DATASÆTTET - SAMME PROCEDURE FOR ALLE DATASÆT
+
+CHECKER OM FILEN DONORS ER I DONORDATA DATABASEN
+```{r}
+connection_donordata <- dbConnect(SQLite(), "donordata/r_db_ex.sqlite")
+dbExistsTable(connection_donordata, "db_Donors")
+dbDisconnect(connection_donordata)
+
+```
+[1] TRUE
+
+CHECKER VARIABLER
+```{r}
+connection_donordata <- dbConnect(SQLite(), "donordata/r_db_ex.sqlite")
+dbListFields(connection_donordata, "db_Donors")
+dbDisconnect(connection_donordata)
+```
+[1] "Donor ID"         "Donor City"       "Donor State"      "Donor Is Teacher" "Donor Zip" 
+
+KOPIERER DATAFILER TIL Rstudio DATABASEN
+
+```{r}
+connection_donordata <- dbConnect(SQLite(), "donordata/r_db_ex.sqlite")
+donors_in_our_db <- dbReadTable(connection_donordata, "db_Donors")
+dbDisconnect(connection_donordata)
+
+```
+
+
+
